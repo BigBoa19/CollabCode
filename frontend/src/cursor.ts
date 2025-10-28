@@ -12,7 +12,7 @@ export class CursorManager {
     updateRemoteCursorPosition(user_id: string, position: number): void {
         // Create cursor if it doesn't exist
         if (!this.remoteCursors.has(user_id)) {
-            const cursorElement = this.createRemoteCursorElement(user_id);
+            const cursorElement = this.createRemoteCursorElement();
             this.editorElement.appendChild(cursorElement);
             this.remoteCursors.set(user_id, {
                 position: position,
@@ -28,7 +28,7 @@ export class CursorManager {
         }
     }
 
-  private createRemoteCursorElement(userId: string) {
+  private createRemoteCursorElement() {
     const cursor = document.createElement('div');
     cursor.className = 'remote-cursor';
     cursor.style.cssText = `
