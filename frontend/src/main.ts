@@ -1,20 +1,15 @@
 import type { Message } from './types';
 import { WebSocketManager } from './websocket';
-import { TextEditor } from './editor';
 import { UIManager } from './ui';
 import './output.css';
 
+// main class
 class CollaborativeTextEditor {
   private wsManager: WebSocketManager;
-  private textEditor: TextEditor;
   private uiManager: UIManager;
 
   constructor() {
-    this.textEditor = new TextEditor('editor', 
-      (position) => this.handleCursorChange(position),
-      () => this.uiManager.reattachDetachedCursors()
-    );
-    this.uiManager = new UIManager();
+    this.uiManager = new UIManager((position) => this.handleCursorChange(position));
     
     this.wsManager = new WebSocketManager(
       (message) => this.handleMessage(message),
@@ -31,7 +26,7 @@ class CollaborativeTextEditor {
     (window as any).connect = () => this.connect();
     (window as any).disconnect = () => this.disconnect();
     (window as any).handleEditorChange = () => this.handleEditorChange();
-    (window as any).updateCursorPosition = () => this.textEditor.updateCursorPosition();
+    (window as any).updateCursorPosition = () => this.uiManager.updateCursorPosition();
   }
 
   private initialize(): void {
@@ -46,13 +41,13 @@ class CollaborativeTextEditor {
 
   private disconnect(): void {
     this.wsManager.disconnect();
-    this.textEditor.clear();
+    this.uiManager.clearEditor();
     this.uiManager.clearAllCursors();
   }
 
   // outgoing
   private handleEditorChange(): void {
-    this.textEditor.handleContentChange((type, content, position) => {
+    this.uiManager.handleEditorChange((type, content, position) => {
       this.wsManager.sendMessage(type, content, position);
       this.wsManager.sendMessage('cursor', '', position);
       console.log(`📤 Sent: ${type} "${content}" at position ${position}`);
@@ -69,7 +64,7 @@ class CollaborativeTextEditor {
   private handleMessage(message: Message): void {
     if (message.type === "insert" || message.type === "delete") {
       console.log(`INCOMING: Handling remote ${message.type}: "${message.content}" at position ${message.position}`);
-      this.textEditor.handleRemoteChange(message.type, message.content, message.position);
+      this.uiManager.handleRemoteChange(message.type, message.content, message.position);
       console.log('🔄 Calling updateAllCursors after text change');
       this.uiManager.updateAllCursors();
     } else if (message.type === "cursor") {

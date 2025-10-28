@@ -1,16 +1,22 @@
 import { CursorManager } from "./cursor";
+import { TextEditor } from "./editor";
 
 export class UIManager {
   private statusElement: HTMLDivElement; // connection status
   private userIdElement: HTMLSpanElement; // user id
   private currentRoomElement: HTMLSpanElement; // current room
   private cursorManager: CursorManager;
+  private textEditor: TextEditor;
 
-  constructor() {
+  constructor(onCursorChange?: (position: number) => void) {
     this.statusElement = document.getElementById("status") as HTMLDivElement;
     this.userIdElement = document.getElementById("userId") as HTMLSpanElement;
     this.currentRoomElement = document.getElementById("currentRoom") as HTMLSpanElement;
     this.cursorManager = new CursorManager('editor');
+    this.textEditor = new TextEditor('editor', 
+      onCursorChange,
+      () => this.cursorManager.reattachDetachedCursors()
+    );
 
     if (!this.statusElement || !this.userIdElement || !this.currentRoomElement) {
       throw new Error("Required DOM elements not found");
@@ -58,5 +64,22 @@ export class UIManager {
 
   reattachDetachedCursors(): void {
     this.cursorManager.reattachDetachedCursors();
+  }
+
+  // TextEditor methods
+  handleEditorChange(onChange: (type: 'insert' | 'delete', content: string, position: number) => void): void {
+    this.textEditor.handleContentChange(onChange);
+  }
+
+  handleRemoteChange(type: 'insert' | 'delete' | 'cursor', content: string, position: number): void {
+    this.textEditor.handleRemoteChange(type, content, position);
+  }
+
+  updateCursorPosition(): void {
+    this.textEditor.updateCursorPosition();
+  }
+
+  clearEditor(): void {
+    this.textEditor.clear();
   }
 }
