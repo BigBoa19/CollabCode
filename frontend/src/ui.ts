@@ -58,10 +58,6 @@ export class UIManager {
     this.cursorManager.clearAllCursors()
   }
 
-  updateAllCursors(): void {
-    this.cursorManager.updateAllCursors();
-  }
-
   reattachDetachedCursors(): void {
     this.cursorManager.reattachDetachedCursors();
   }

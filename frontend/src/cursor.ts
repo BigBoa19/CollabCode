@@ -92,10 +92,6 @@ export class CursorManager {
           
         cursorData.element.style.left = `${leftOffset}px`;
         cursorData.element.style.top = `${topOffset}px`;
-        console.log(`🎯 Positioning cursor for ${userId} at position ${position}, text length: ${textContent.length} which has 
-        leftOffset: ${leftOffset}px, topOffset: ${topOffset}px`);
-        console.log(`🔍 Cursor element in DOM:`, cursorData.element);
-        console.log(`🔍 Cursor parent:`, cursorData.element.parentElement);
     
         // Restore original selection
         currentSelection?.removeAllRanges();
@@ -128,14 +124,6 @@ export class CursorManager {
       cursorData.element.remove();
     });
     this.remoteCursors.clear();
-  }
-
-  updateAllCursors(): void {
-    console.log(`🔄 Updating all cursors. Total cursors: ${this.remoteCursors.size}`);
-    this.remoteCursors.forEach((cursorData, userId) => {
-      console.log(`📍 Updating cursor for ${userId} at position ${cursorData.position}`);
-      this.positionRemoteCursor(userId, cursorData.position);
-    });
   }
 
   // Re-append any detached cursor elements after content updates

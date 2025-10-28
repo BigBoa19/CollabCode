@@ -82,15 +82,26 @@ export class TextEditor {
     const currentContent = this.editorElement.textContent || "";
     
     if (position >= 0 && position <= currentContent.length) {
+      // Store current cursor position before making changes
+      const currentCursorPos = this.getCursorPosition();
+      
       const newContent = 
         currentContent.slice(0, position) +
         text +
         currentContent.slice(position);
+
+      // Update content
       this.editorElement.textContent = newContent;
       this.lastContent = newContent;
       
+      // Restore cursor position (adjusted for inserted text if needed)
+      const adjustedCursorPos = currentCursorPos <= position 
+        ? currentCursorPos 
+        : currentCursorPos + text.length;
+      this.setCursorPosition(adjustedCursorPos);
+      
       // Notify that content was updated (for cursor re-attachment)
-      this.onContentUpdate?.();
+      this.onContentUpdate?.(); // calls reattachDetachedCursors()
     }
   }
 
@@ -101,14 +112,25 @@ export class TextEditor {
     if (position >= 0 && position < currentContent.length) {
       const endPos = position + text.length;
       if (endPos <= currentContent.length) {
+        // Store current cursor position before making changes
+        const currentCursorPos = this.getCursorPosition();
+        
         const newContent = 
           currentContent.slice(0, position) + 
           currentContent.slice(endPos);
+        
+        // Update content
         this.editorElement.textContent = newContent;
         this.lastContent = newContent;
         
+        // Restore cursor position (adjusted for deleted text if needed)
+        const adjustedCursorPos = currentCursorPos <= position 
+          ? currentCursorPos 
+          : Math.max(position, currentCursorPos - text.length);
+        this.setCursorPosition(adjustedCursorPos);
+        
         // Notify that content was updated (for cursor re-attachment)
-        this.onContentUpdate?.();
+        this.onContentUpdate?.(); // calls reattachDetachedCursors()
       }
     }
   }
@@ -142,6 +164,28 @@ export class TextEditor {
     preCaretRange.setEnd(range.endContainer, range.endOffset);
     
     return preCaretRange.toString().length;
+  }
+
+  private setCursorPosition(position: number): void {
+    const selection = window.getSelection();
+    if (!selection) return;
+
+    const textContent = this.editorElement.textContent || '';
+    const clampedPosition = Math.min(position, textContent.length);
+    
+    try {
+      const range = document.createRange();
+      const textNode = this.editorElement.firstChild;
+      
+      if (textNode && textNode.nodeType === Node.TEXT_NODE) {
+        range.setStart(textNode, clampedPosition);
+        range.setEnd(textNode, clampedPosition);
+        selection.removeAllRanges();
+        selection.addRange(range);
+      }
+    } catch (error) {
+      console.error('Error setting cursor position:', error);
+    }
   }
 
   // Get current content

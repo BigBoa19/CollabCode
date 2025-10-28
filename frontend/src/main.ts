@@ -49,7 +49,6 @@ class CollaborativeTextEditor {
   private handleEditorChange(): void {
     this.uiManager.handleEditorChange((type, content, position) => {
       this.wsManager.sendMessage(type, content, position);
-      this.wsManager.sendMessage('cursor', '', position);
       console.log(`📤 Sent: ${type} "${content}" at position ${position}`);
     });
   }
@@ -65,13 +64,10 @@ class CollaborativeTextEditor {
     if (message.type === "insert" || message.type === "delete") {
       console.log(`INCOMING: Handling remote ${message.type}: "${message.content}" at position ${message.position}`);
       this.uiManager.handleRemoteChange(message.type, message.content, message.position);
-      console.log('🔄 Calling updateAllCursors after text change');
-      this.uiManager.updateAllCursors();
     } else if (message.type === "cursor") {
       console.log(`INCOMING: Received cursor position: ${message.position} from user ${message.user_id}`);
       this.uiManager.updateRemoteCursorPosition(message.user_id, message.position)
     }
-
   }
 
   private handleStatusChange(connected: boolean): void {
