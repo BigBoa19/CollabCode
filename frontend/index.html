@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Collaborative Text Editor</title>
+    <link href="/src/output.css" rel="stylesheet" />
+  </head>
+  <body class="font-sans max-w-6xl mx-auto p-5 bg-gray-100">
+    <div class="bg-white p-8 rounded-lg shadow-lg">
+      <h1 class="text-gray-800 text-center mb-8 text-3xl font-bold">
+        📝 Collaborative Text Editor
+      </h1>
+
+      <div
+        id="status"
+        class="p-4 rounded mb-5 font-bold text-center bg-red-100 text-red-800 border border-red-200"
+      >
+        Disconnected
+      </div>
+
+      <div class="bg-gray-100 p-3 rounded mb-4">
+        <strong>User ID:</strong> <span id="userId">Not connected</span><br />
+        <strong>Room:</strong> <span id="currentRoom">None</span><br />
+      </div>
+
+      <div class="mb-5 p-4 bg-gray-50 rounded">
+        <h3 class="mt-0 text-gray-600 text-lg font-semibold">🔌 Connection</h3>
+        <input
+          type="text"
+          id="roomInput"
+          placeholder="Enter Room ID"
+          value="test-room"
+          class="w-48 p-2.5 mx-1 border border-gray-300 rounded text-sm"
+        />
+        <button
+          id="connectBtn"
+          onclick="connect()"
+          class="bg-blue-500 hover:bg-blue-600 disabled:bg-gray-500 disabled:cursor-not-allowed text-white border-none cursor-pointer transition-colors duration-300 p-2.5 mx-1 rounded text-sm"
+        >
+          Connect
+        </button>
+        <button
+          id="disconnectBtn"
+          onclick="disconnect()"
+          disabled
+          class="bg-blue-500 hover:bg-blue-600 disabled:bg-gray-500 disabled:cursor-not-allowed text-white border-none cursor-pointer transition-colors duration-300 p-2.5 mx-1 rounded text-sm"
+        >
+          Disconnect
+        </button>
+      </div>
+
+      <div class="flex gap-5 mb-5">
+        <div
+          class="flex-1 min-h-72 border-2 border-gray-300 rounded p-4 font-mono text-sm leading-relaxed bg-gray-50 resize-y outline-none focus:border-blue-500"
+          style="position: relative;"
+          id="editor"
+          contenteditable="true"
+          oninput="handleEditorChange()"
+          onkeyup="updateCursorPosition()"
+          onmouseup="updateCursorPosition()"
+        ></div>
+      </div>
+    </div>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

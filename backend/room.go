@@ -70,6 +70,9 @@ func (room *Room) applyOperation(message *Message) {
 		room.Document.Content = room.Document.Content[:position] + room.Document.Content[endPos:]
 		room.Document.LastModified = time.Now()
 		room.saveDocument()
+	case MessageTypeCursor:
+		log.Printf("Received cursor position: %d from user: %s", message.Position, message.UserID)
+		// Cursor messages don't modify the document, just broadcast to other clients
 	}
 }
 
