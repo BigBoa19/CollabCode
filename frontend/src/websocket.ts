@@ -29,7 +29,9 @@ export class WebSocketManager {
       return;
     }
 
-    const wsUrl = `ws://localhost:8080/ws/${this.roomId}`;
+    // Use production URL or fallback to localhost for development
+    const baseUrl = 'wss://collabcode-production-b41e.up.railway.app';
+    const wsUrl = `${baseUrl}/ws/${this.roomId}`;
     
     try {
       this.ws = new WebSocket(wsUrl);
@@ -107,7 +109,9 @@ export class WebSocketManager {
   }
 
   get connectionUrl(): string {
-    return this.ws ? `ws://localhost:8080/ws/${this.roomId}` : "";
+    if (!this.ws) return "";
+    const baseUrl = 'wss://collabcode-production-b41e.up.railway.app';
+    return `${baseUrl}/ws/${this.roomId}`;
   }
 
   get stats() {
