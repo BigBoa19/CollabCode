@@ -3,6 +3,7 @@ package main
 import (
 	"log"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/gorilla/mux"
@@ -60,6 +61,12 @@ func main() {
 		http.ServeFile(w, r, "../index.html")
 	})
 
-	log.Println("Server running on :8080")
-	http.ListenAndServe(":8080", r)
+	// Get port from environment variable (for production)
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
+	}
+
+	log.Printf("Server running on :%s", port)
+	http.ListenAndServe(":"+port, r)
 }
