@@ -8,15 +8,21 @@ export class UIManager {
   private cursorManager: CursorManager;
   private textEditor: TextEditor;
 
-  constructor(onCursorChange?: (position: number) => void) {
+  constructor(onCursorChange?: (position: number) => void, onChange?: (type: 'insert' | 'delete', content: string, position: number) => void) {
     this.statusElement = document.getElementById("status") as HTMLDivElement;
     this.userIdElement = document.getElementById("userId") as HTMLSpanElement;
     this.currentRoomElement = document.getElementById("currentRoom") as HTMLSpanElement;
     this.cursorManager = new CursorManager('editor');
     this.textEditor = new TextEditor('editor', 
       onCursorChange,
-      () => this.cursorManager.reattachDetachedCursors()
+      () => this.cursorManager.reattachDetachedCursors(),
+      onChange
     );
+    // Set the editor view in cursor manager after editor is created
+    const editorView = this.textEditor.getEditorView();
+    if (editorView) {
+      this.cursorManager.setEditorView(editorView);
+    }
 
     if (!this.statusElement || !this.userIdElement || !this.currentRoomElement) {
       throw new Error("Required DOM elements not found");
@@ -63,8 +69,11 @@ export class UIManager {
   }
 
   // TextEditor methods
-  handleEditorChange(onChange: (type: 'insert' | 'delete', content: string, position: number) => void): void {
-    this.textEditor.handleContentChange(onChange);
+  // Note: With CodeMirror, changes are automatically tracked via the onChange callback
+  // This method is kept for compatibility but may not be needed
+  handleEditorChange(_onChange: (type: 'insert' | 'delete', content: string, position: number) => void): void {
+    // CodeMirror handles change tracking automatically through the callback
+    // This is a no-op now, but kept for API compatibility
   }
 
   handleRemoteChange(type: 'insert' | 'delete' | 'cursor', content: string, position: number): void {

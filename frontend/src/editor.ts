@@ -1,18 +1,93 @@
+import { EditorState } from '@codemirror/state';
+import { EditorView, keymap, highlightActiveLine, highlightActiveLineGutter, lineNumbers } from '@codemirror/view';
+import { defaultKeymap, history, historyKeymap } from '@codemirror/commands';
+import { bracketMatching, foldGutter, indentOnInput } from '@codemirror/language';
+import { javascript } from '@codemirror/lang-javascript';
 import type { DiffResult } from './types';
 
 export class TextEditor {
-  private editorElement: HTMLDivElement;
+  private editorView: EditorView | null = null;
   private lastContent: string = "";
+  private onChangeCallback?: (type: 'insert' | 'delete', content: string, position: number) => void;
   private onCursorChange?: (position: number) => void;
   private onContentUpdate?: () => void;
+  private isApplyingRemoteChange: boolean = false;
 
-  constructor(editorId: string, onCursorChange?: (position: number) => void, onContentUpdate?: () => void) {
-    this.editorElement = document.getElementById(editorId) as HTMLDivElement;
+  constructor(containerId: string, onCursorChange?: (position: number) => void, onContentUpdate?: () => void, onChange?: (type: 'insert' | 'delete', content: string, position: number) => void) {
     this.onCursorChange = onCursorChange;
     this.onContentUpdate = onContentUpdate;
-    if (!this.editorElement) {
-      throw new Error(`Editor element with id '${editorId}' not found`);
+    this.onChangeCallback = onChange;
+    
+    const containerElement = document.getElementById(containerId);
+    if (!containerElement) {
+      throw new Error(`Editor container with id '${containerId}' not found`);
     }
+
+    // Initialize CodeMirror editor
+    const startState = EditorState.create({
+      doc: "",
+      extensions: [
+        lineNumbers(),
+        highlightActiveLineGutter(),
+        highlightActiveLine(),
+        history(),
+        foldGutter(),
+        indentOnInput(),
+        bracketMatching(),
+        keymap.of([...defaultKeymap, ...historyKeymap]),
+        javascript(),
+        EditorView.updateListener.of((update) => {
+          if (update.docChanged && !this.isApplyingRemoteChange && this.onChangeCallback) {
+            // Use CodeMirror's change tracking to detect exact changes
+            // Get the old document content before changes
+            const oldDoc = update.startState.doc;
+            
+            update.changes.iterChanges((fromA: number, toA: number, fromB: number, _toB: number, inserted: any) => {
+              // Handle deletions (text that existed in oldDoc but not in newDoc)
+              if (toA > fromA) {
+                const deletedText = oldDoc.sliceString(fromA, toA);
+                this.onChangeCallback!('delete', deletedText, fromA);
+              }
+              // Handle insertions
+              if (inserted.length > 0) {
+                const insertedText = inserted.toString();
+                this.onChangeCallback!('insert', insertedText, fromB);
+              }
+            });
+            this.lastContent = update.state.doc.toString();
+          }
+          if (update.selectionSet && !this.isApplyingRemoteChange) {
+            // Cursor position changed
+            const position = update.state.selection.main.head;
+            this.onCursorChange?.(position);
+          }
+        }),
+        EditorView.theme({
+          '&': {
+            fontSize: '14px',
+            height: '100%',
+          },
+          '.cm-editor': {
+            height: '100%',
+          },
+          '.cm-scroller': {
+            height: '100%',
+            overflow: 'auto',
+          },
+          '.cm-content': {
+            padding: '16px',
+            minHeight: '100%',
+          },
+        }),
+      ],
+    });
+
+    this.editorView = new EditorView({
+      state: startState,
+      parent: containerElement,
+    });
+
+    this.lastContent = this.editorView.state.doc.toString();
   }
 
   // Find difference between old and new text
@@ -66,7 +141,9 @@ export class TextEditor {
 
   // Handle local content changes
   handleContentChange(onChange: (type: 'insert' | 'delete', content: string, position: number) => void): void {
-    const currentContent = this.editorElement.textContent || "";
+    if (!this.editorView) return;
+    
+    const currentContent = this.editorView.state.doc.toString();
     
     if (currentContent !== this.lastContent) {
       const diff = this.findDifference(this.lastContent, currentContent);
@@ -79,58 +156,75 @@ export class TextEditor {
 
   // Handle remote insertions
   insertTextAtPosition(text: string, position: number): void {
-    const currentContent = this.editorElement.textContent || "";
-    
-    if (position >= 0 && position <= currentContent.length) {
-      // Store current cursor position before making changes
-      const currentCursorPos = this.getCursorPosition();
-      
-      const newContent = 
-        currentContent.slice(0, position) +
-        text +
-        currentContent.slice(position);
+    if (!this.editorView) return;
 
-      // Update content
-      this.editorElement.textContent = newContent;
-      this.lastContent = newContent;
+    const doc = this.editorView.state.doc;
+    const docLength = doc.length;
+
+    if (position >= 0 && position <= docLength) {
+      this.isApplyingRemoteChange = true;
       
-      // Restore cursor position (adjusted for inserted text if needed)
-      const adjustedCursorPos = currentCursorPos <= position 
-        ? currentCursorPos 
-        : currentCursorPos + text.length;
-      this.setCursorPosition(adjustedCursorPos);
+      // Store current cursor position
+      const currentCursorPos = this.editorView.state.selection.main.head;
+      
+      // Create transaction to insert text
+      const transaction = this.editorView.state.update({
+        changes: {
+          from: position,
+          insert: text,
+        },
+        selection: {
+          anchor: currentCursorPos <= position 
+            ? currentCursorPos 
+            : currentCursorPos + text.length,
+        },
+      });
+
+      this.editorView.dispatch(transaction);
+      this.lastContent = this.editorView.state.doc.toString();
+      
+      this.isApplyingRemoteChange = false;
       
       // Notify that content was updated (for cursor re-attachment)
-      this.onContentUpdate?.(); // calls reattachDetachedCursors()
+      this.onContentUpdate?.();
     }
   }
 
   // Handle remote deletions
   deleteTextAtPosition(text: string, position: number): void {
-    const currentContent = this.editorElement.textContent || "";
+    if (!this.editorView) return;
 
-    if (position >= 0 && position < currentContent.length) {
+    const doc = this.editorView.state.doc;
+    const docLength = doc.length;
+
+    if (position >= 0 && position < docLength) {
       const endPos = position + text.length;
-      if (endPos <= currentContent.length) {
-        // Store current cursor position before making changes
-        const currentCursorPos = this.getCursorPosition();
+      if (endPos <= docLength) {
+        this.isApplyingRemoteChange = true;
         
-        const newContent = 
-          currentContent.slice(0, position) + 
-          currentContent.slice(endPos);
+        // Store current cursor position
+        const currentCursorPos = this.editorView.state.selection.main.head;
         
-        // Update content
-        this.editorElement.textContent = newContent;
-        this.lastContent = newContent;
+        // Create transaction to delete text
+        const transaction = this.editorView.state.update({
+          changes: {
+            from: position,
+            to: endPos,
+          },
+          selection: {
+            anchor: currentCursorPos <= position 
+              ? currentCursorPos 
+              : Math.max(position, currentCursorPos - text.length),
+          },
+        });
+
+        this.editorView.dispatch(transaction);
+        this.lastContent = this.editorView.state.doc.toString();
         
-        // Restore cursor position (adjusted for deleted text if needed)
-        const adjustedCursorPos = currentCursorPos <= position 
-          ? currentCursorPos 
-          : Math.max(position, currentCursorPos - text.length);
-        this.setCursorPosition(adjustedCursorPos);
+        this.isApplyingRemoteChange = false;
         
         // Notify that content was updated (for cursor re-attachment)
-        this.onContentUpdate?.(); // calls reattachDetachedCursors()
+        this.onContentUpdate?.();
       }
     }
   }
@@ -146,62 +240,45 @@ export class TextEditor {
 
   // Update cursor position
   updateCursorPosition(): void {
-    const position = this.getCursorPosition();
+    if (!this.editorView) return;
     
-    // Send cursor position to other users
+    const position = this.editorView.state.selection.main.head;
     this.onCursorChange?.(position);
-  }
-
-  private getCursorPosition(): number {
-    const selection = window.getSelection();
-    if (!selection || selection.rangeCount === 0) {
-      return 0;
-    }
-
-    const range = selection.getRangeAt(0);
-    const preCaretRange = range.cloneRange();
-    preCaretRange.selectNodeContents(this.editorElement);
-    preCaretRange.setEnd(range.endContainer, range.endOffset);
-    
-    return preCaretRange.toString().length;
-  }
-
-  private setCursorPosition(position: number): void {
-    const selection = window.getSelection();
-    if (!selection) return;
-
-    const textContent = this.editorElement.textContent || '';
-    const clampedPosition = Math.min(position, textContent.length);
-    
-    try {
-      const range = document.createRange();
-      const textNode = this.editorElement.firstChild;
-      
-      if (textNode && textNode.nodeType === Node.TEXT_NODE) {
-        range.setStart(textNode, clampedPosition);
-        range.setEnd(textNode, clampedPosition);
-        selection.removeAllRanges();
-        selection.addRange(range);
-      }
-    } catch (error) {
-      console.error('Error setting cursor position:', error);
-    }
   }
 
   // Get current content
   getContent(): string {
-    return this.editorElement.textContent || "";
+    return this.editorView?.state.doc.toString() || "";
   }
 
   // Set content
   setContent(content: string): void {
-    this.editorElement.textContent = content;
+    if (!this.editorView) return;
+    
+    const transaction = this.editorView.state.update({
+      changes: {
+        from: 0,
+        to: this.editorView.state.doc.length,
+        insert: content,
+      },
+    });
+    
+    this.editorView.dispatch(transaction);
     this.lastContent = content;
   }
 
   // Clear editor content
   clear(): void {
-    this.editorElement.textContent = "";
-    this.lastContent = "";
+    this.setContent("");
+  }
+
+  // Get editor view for cursor positioning (used by CursorManager)
+  getEditorView(): EditorView | null {
+    return this.editorView;
+  }
+
+  // Get editor container element
+  getContainerElement(): HTMLElement | null {
+    return this.editorView?.dom || null;
   }
 }

@@ -9,7 +9,13 @@ class CollaborativeTextEditor {
   private uiManager: UIManager;
 
   constructor() {
-    this.uiManager = new UIManager((position) => this.handleCursorChange(position));
+    this.uiManager = new UIManager(
+      (position) => this.handleCursorChange(position),
+      (type, content, position) => {
+        this.wsManager.sendMessage(type, content, position);
+        console.log(`📤 Sent: ${type} "${content}" at position ${position}`);
+      }
+    );
     
     this.wsManager = new WebSocketManager(
       (message) => this.handleMessage(message),
@@ -25,6 +31,7 @@ class CollaborativeTextEditor {
     // Make functions globally available for onclick handlers
     (window as any).connect = () => this.connect();
     (window as any).disconnect = () => this.disconnect();
+    // Note: handleEditorChange and updateCursorPosition are now handled automatically by CodeMirror
     (window as any).handleEditorChange = () => this.handleEditorChange();
     (window as any).updateCursorPosition = () => this.uiManager.updateCursorPosition();
   }

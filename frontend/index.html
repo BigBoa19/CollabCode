@@ -52,12 +52,9 @@
 
       <div class="flex gap-5 mb-5">
         <div
-          class="flex-1 min-h-72 border-2 border-gray-300 rounded p-4 font-mono text-sm leading-relaxed bg-gray-50 resize-y outline-none focus:border-blue-500"
+          class="flex-1 min-h-72 border-2 border-gray-300 rounded overflow-hidden bg-gray-50 focus-within:border-blue-500"
           style="position: relative"
           id="editor"
-          contenteditable="true"
-          oninput="handleEditorChange(); updateCursorPosition();"
-          onmouseup="updateCursorPosition()"
         ></div>
       </div>
     </div>
