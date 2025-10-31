@@ -1,5 +1,6 @@
 import { CursorManager } from "./cursor";
 import { TextEditor } from "./editor";
+import type { CollabUpdate } from "./collab";
 
 export class UIManager {
   private statusElement: HTMLDivElement; // connection status
@@ -8,15 +9,25 @@ export class UIManager {
   private cursorManager: CursorManager;
   private textEditor: TextEditor;
 
-  constructor(onCursorChange?: (position: number) => void, onChange?: (type: 'insert' | 'delete', content: string, position: number) => void) {
+  constructor(
+    clientID: string,
+    startVersion: number = 0,
+    onCursorChange?: (position: number) => void,
+    onCollabPush?: (updates: CollabUpdate[], version: number) => void,
+    onCollabPull?: (version: number) => void
+  ) {
     this.statusElement = document.getElementById("status") as HTMLDivElement;
     this.userIdElement = document.getElementById("userId") as HTMLSpanElement;
     this.currentRoomElement = document.getElementById("currentRoom") as HTMLSpanElement;
     this.cursorManager = new CursorManager('editor');
-    this.textEditor = new TextEditor('editor', 
+    this.textEditor = new TextEditor(
+      'editor',
+      clientID,
+      startVersion,
       onCursorChange,
       () => this.cursorManager.reattachDetachedCursors(),
-      onChange
+      onCollabPush,
+      onCollabPull
     );
     // Set the editor view in cursor manager after editor is created
     const editorView = this.textEditor.getEditorView();
@@ -76,8 +87,14 @@ export class UIManager {
     // This is a no-op now, but kept for API compatibility
   }
 
-  handleRemoteChange(type: 'insert' | 'delete' | 'cursor', content: string, position: number): void {
-    this.textEditor.handleRemoteChange(type, content, position);
+  // Handle collab updates from server
+  applyCollabUpdates(updates: CollabUpdate[]): boolean {
+    return this.textEditor.applyCollabUpdates(updates);
+  }
+
+  // Handle version response from server
+  handleVersionResponse(version: number, content?: string): void {
+    this.textEditor.handleVersionResponse(version, content);
   }
 
   updateCursorPosition(): void {

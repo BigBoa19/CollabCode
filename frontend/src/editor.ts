@@ -3,27 +3,45 @@ import { EditorView, keymap, highlightActiveLine, highlightActiveLineGutter, lin
 import { defaultKeymap, history, historyKeymap } from '@codemirror/commands';
 import { bracketMatching, foldGutter, indentOnInput } from '@codemirror/language';
 import { javascript } from '@codemirror/lang-javascript';
+import { collab, sendableUpdates } from '@codemirror/collab';
+import { CollabManager } from './collab';
 import type { DiffResult } from './types';
 
 export class TextEditor {
   private editorView: EditorView | null = null;
   private lastContent: string = "";
-  private onChangeCallback?: (type: 'insert' | 'delete', content: string, position: number) => void;
   private onCursorChange?: (position: number) => void;
   private onContentUpdate?: () => void;
-  private isApplyingRemoteChange: boolean = false;
+  private collabManager: CollabManager;
+  private clientID: string;
+  private startVersion: number = 0;
 
-  constructor(containerId: string, onCursorChange?: (position: number) => void, onContentUpdate?: () => void, onChange?: (type: 'insert' | 'delete', content: string, position: number) => void) {
+  constructor(
+    containerId: string,
+    clientID: string,
+    startVersion: number = 0,
+    onCursorChange?: (position: number) => void,
+    onContentUpdate?: () => void,
+    onPush?: (updates: any[], version: number) => void,
+    onPull?: (version: number) => void
+  ) {
+    this.clientID = clientID;
+    this.startVersion = startVersion;
     this.onCursorChange = onCursorChange;
     this.onContentUpdate = onContentUpdate;
-    this.onChangeCallback = onChange;
+    
+    // Initialize collab manager
+    this.collabManager = new CollabManager(
+      onPush,
+      onPull
+    );
     
     const containerElement = document.getElementById(containerId);
     if (!containerElement) {
       throw new Error(`Editor container with id '${containerId}' not found`);
     }
 
-    // Initialize CodeMirror editor
+    // Initialize CodeMirror editor with collab extension
     const startState = EditorState.create({
       doc: "",
       extensions: [
@@ -36,30 +54,37 @@ export class TextEditor {
         bracketMatching(),
         keymap.of([...defaultKeymap, ...historyKeymap]),
         javascript(),
+        collab({
+          startVersion: this.startVersion,
+          clientID: this.clientID,
+        }),
         EditorView.updateListener.of((update) => {
-          if (update.docChanged && !this.isApplyingRemoteChange && this.onChangeCallback) {
-            // Use CodeMirror's change tracking to detect exact changes
-            // Get the old document content before changes
-            const oldDoc = update.startState.doc;
-            
-            update.changes.iterChanges((fromA: number, toA: number, fromB: number, _toB: number, inserted: any) => {
-              // Handle deletions (text that existed in oldDoc but not in newDoc)
-              if (toA > fromA) {
-                const deletedText = oldDoc.sliceString(fromA, toA);
-                this.onChangeCallback!('delete', deletedText, fromA);
-              }
-              // Handle insertions
-              if (inserted.length > 0) {
-                const insertedText = inserted.toString();
-                this.onChangeCallback!('insert', insertedText, fromB);
-              }
-            });
-            this.lastContent = update.state.doc.toString();
-          }
-          if (update.selectionSet && !this.isApplyingRemoteChange) {
-            // Cursor position changed
+          // Handle cursor position changes
+          if (update.selectionSet) {
             const position = update.state.selection.main.head;
             this.onCursorChange?.(position);
+          }
+          
+          // Handle document changes
+          if (update.docChanged) {
+            this.lastContent = update.state.doc.toString();
+            
+            // Check if there are sendable updates (local changes that need to be pushed)
+            // Use a timeout to batch updates and avoid flooding the server
+            if (this.editorView && this.collabManager) {
+              const sendable = sendableUpdates(update.state);
+              if (sendable.length > 0) {
+                // Debounce pushes to avoid infinite loops
+                clearTimeout((this as any).pushTimeout);
+                (this as any).pushTimeout = setTimeout(() => {
+                  if (this.editorView) {
+                    this.collabManager.pushChanges(this.editorView);
+                  }
+                }, 50); // Wait 50ms for more changes before pushing
+              }
+            }
+            
+            this.onContentUpdate?.();
           }
         }),
         EditorView.theme({
@@ -154,88 +179,16 @@ export class TextEditor {
     }
   }
 
-  // Handle remote insertions
-  insertTextAtPosition(text: string, position: number): void {
-    if (!this.editorView) return;
-
-    const doc = this.editorView.state.doc;
-    const docLength = doc.length;
-
-    if (position >= 0 && position <= docLength) {
-      this.isApplyingRemoteChange = true;
-      
-      // Store current cursor position
-      const currentCursorPos = this.editorView.state.selection.main.head;
-      
-      // Create transaction to insert text
-      const transaction = this.editorView.state.update({
-        changes: {
-          from: position,
-          insert: text,
-        },
-        selection: {
-          anchor: currentCursorPos <= position 
-            ? currentCursorPos 
-            : currentCursorPos + text.length,
-        },
-      });
-
-      this.editorView.dispatch(transaction);
-      this.lastContent = this.editorView.state.doc.toString();
-      
-      this.isApplyingRemoteChange = false;
-      
-      // Notify that content was updated (for cursor re-attachment)
-      this.onContentUpdate?.();
-    }
+  // Handle collab updates from server
+  applyCollabUpdates(updates: any[]): boolean {
+    if (!this.editorView) return false;
+    return this.collabManager.handleUpdatesResponse(this.editorView, updates);
   }
 
-  // Handle remote deletions
-  deleteTextAtPosition(text: string, position: number): void {
+  // Handle version response from server (on initial connection)
+  handleVersionResponse(version: number, content?: string): void {
     if (!this.editorView) return;
-
-    const doc = this.editorView.state.doc;
-    const docLength = doc.length;
-
-    if (position >= 0 && position < docLength) {
-      const endPos = position + text.length;
-      if (endPos <= docLength) {
-        this.isApplyingRemoteChange = true;
-        
-        // Store current cursor position
-        const currentCursorPos = this.editorView.state.selection.main.head;
-        
-        // Create transaction to delete text
-        const transaction = this.editorView.state.update({
-          changes: {
-            from: position,
-            to: endPos,
-          },
-          selection: {
-            anchor: currentCursorPos <= position 
-              ? currentCursorPos 
-              : Math.max(position, currentCursorPos - text.length),
-          },
-        });
-
-        this.editorView.dispatch(transaction);
-        this.lastContent = this.editorView.state.doc.toString();
-        
-        this.isApplyingRemoteChange = false;
-        
-        // Notify that content was updated (for cursor re-attachment)
-        this.onContentUpdate?.();
-      }
-    }
-  }
-
-  // Handle remote changes
-  handleRemoteChange(type: 'insert' | 'delete' | 'cursor', content: string, position: number): void {
-    if (type === 'insert') {
-      this.insertTextAtPosition(content, position);
-    } else if (type === 'delete') {
-      this.deleteTextAtPosition(content, position);
-    }
+    this.collabManager.handleVersionResponse(this.editorView, version, content);
   }
 
   // Update cursor position

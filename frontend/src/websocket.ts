@@ -1,4 +1,5 @@
 import type { Message } from './types';
+import type { CollabMessage, CollabUpdate } from './collab';
 
 export class WebSocketManager {
   private ws: WebSocket | null = null;
@@ -11,15 +12,18 @@ export class WebSocketManager {
   private onMessageHandler?: (message: Message) => void;
   private onStatusChange?: (connected: boolean) => void;
   private onUserInfoChange?: () => void;
+  private onCollabMessage?: (message: CollabMessage) => void;
 
   constructor(
     onMessage?: (message: Message) => void,
     onStatusChange?: (connected: boolean) => void,
-    onUserInfoChange?: () => void
+    onUserInfoChange?: () => void,
+    onCollabMessage?: (message: CollabMessage) => void
   ) {
     this.onMessageHandler = onMessage;
     this.onStatusChange = onStatusChange;
     this.onUserInfoChange = onUserInfoChange;
+    this.onCollabMessage = onCollabMessage;
   }
 
   connect(roomId: string): void {
@@ -29,8 +33,8 @@ export class WebSocketManager {
       return;
     }
 
-    // Use production URL or fallback to localhost for development
-    const baseUrl = 'wss://collabcode-production-b41e.up.railway.app';
+    // Use localhost for development
+    const baseUrl = 'ws://localhost:8080';
     const wsUrl = `${baseUrl}/ws/${this.roomId}`;
     
     try {
@@ -43,9 +47,17 @@ export class WebSocketManager {
       this.ws.onmessage = (event: MessageEvent) => {
         this.messagesReceived++;
         try {
-          const message: Message = JSON.parse(event.data);
-          this.handleMessage(message);
-          this.onMessageHandler?.(message);
+          const data = JSON.parse(event.data);
+          
+          // Check if it's a collab message (has 'type' field matching collab types)
+          if (data.type === 'version' || data.type === 'updates' || data.type === 'pull' || data.type === 'push') {
+            this.onCollabMessage?.(data as CollabMessage);
+          } else {
+            // Legacy message format
+            const message: Message = data;
+            this.handleMessage(message);
+            this.onMessageHandler?.(message);
+          }
         } catch (error) {
           console.error('Error parsing message:', error);
         }
@@ -88,6 +100,41 @@ export class WebSocketManager {
     this.messagesSent++;
   }
 
+  // Send collab push message
+  sendCollabPush(updates: CollabUpdate[], version: number): void {
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+      console.warn("Not connected to WebSocket");
+      return;
+    }
+
+    const message: CollabMessage = {
+      type: 'push',
+      updates,
+      version,
+      user_id: this.userId || "",
+    };
+
+    this.ws.send(JSON.stringify(message));
+    this.messagesSent++;
+  }
+
+  // Send collab pull request
+  sendCollabPull(version: number): void {
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+      console.warn("Not connected to WebSocket");
+      return;
+    }
+
+    const message: CollabMessage = {
+      type: 'pull',
+      version,
+      user_id: this.userId || "",
+    };
+
+    this.ws.send(JSON.stringify(message));
+    this.messagesSent++;
+  }
+
   private handleMessage(message: Message): void {
     if (message.type === "join") {
       this.userId = message.content;
@@ -110,7 +157,7 @@ export class WebSocketManager {
 
   get connectionUrl(): string {
     if (!this.ws) return "";
-    const baseUrl = 'wss://collabcode-production-b41e.up.railway.app';
+    const baseUrl = 'ws://localhost:8080';
     return `${baseUrl}/ws/${this.roomId}`;
   }
 

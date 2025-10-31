@@ -9,11 +9,12 @@ import (
 )
 
 type Client struct {
-	ID   string
-	Conn *websocket.Conn
-	Send chan *Message
-	Room *Room
-	mu   sync.Mutex
+	ID         string
+	Conn       *websocket.Conn
+	Send       chan *Message
+	CollabSend chan *CollabMessage
+	Room       *Room
+	mu         sync.Mutex
 }
 
 func (c *Client) readPump() {
@@ -33,6 +34,17 @@ func (c *Client) readPump() {
 		if err != nil {
 			break
 		}
+
+		// Try parsing as collab message first
+		collabMsg, collabErr := ParseCollabMessage(p)
+		if collabErr == nil && (collabMsg.Type == MessageTypePull || collabMsg.Type == MessageTypePush) {
+			// Set user ID from client ID
+			collabMsg.UserID = c.ID
+			c.Room.CollabChan <- collabMsg
+			continue
+		}
+
+		// Fall back to legacy message format
 		msg, err := ParseMessage(p)
 		if err != nil {
 			log.Printf("ERROR: Failed to parse message: %v", err)
@@ -59,6 +71,15 @@ func (c *Client) writePump() {
 			}
 			c.mu.Lock()
 			jsonMessage, _ := message.ToJSON()
+			c.Conn.WriteMessage(websocket.TextMessage, jsonMessage)
+			c.mu.Unlock()
+		case collabMsg, ok := <-c.CollabSend:
+			if !ok {
+				c.Conn.WriteMessage(websocket.CloseMessage, []byte{})
+				return
+			}
+			c.mu.Lock()
+			jsonMessage, _ := collabMsg.ToJSON()
 			c.Conn.WriteMessage(websocket.TextMessage, jsonMessage)
 			c.mu.Unlock()
 		case <-ticker.C:

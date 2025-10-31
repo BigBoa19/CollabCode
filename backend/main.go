@@ -27,19 +27,16 @@ func handleWebSocket(hub *Hub, w http.ResponseWriter, r *http.Request) {
 	}
 
 	client := &Client{
-		ID:   "user-" + time.Now().Format("0405"),
-		Conn: conn,
-		Send: make(chan *Message, 256),
-		Room: &Room{ID: roomID},
+		ID:         "user-" + time.Now().Format("0405"),
+		Conn:       conn,
+		Send:       make(chan *Message, 256),
+		CollabSend: make(chan *CollabMessage, 256),
+		Room:       &Room{ID: roomID},
 	}
 
 	hub.Register <- client
 	log.Printf("Client %s registered for room %s", client.ID, roomID)
-
-	// Send the client ID to the frontend
-	welcomeMsg := NewMessage(MessageTypeJoin, client.ID, 0, "server")
-	jsonMsg, _ := welcomeMsg.ToJSON()
-	client.Conn.WriteMessage(websocket.TextMessage, jsonMsg)
+	// Hub.Run() will send join and version messages
 
 	go client.readPump()
 	go client.writePump()
