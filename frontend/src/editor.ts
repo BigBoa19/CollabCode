@@ -14,9 +14,9 @@ export class TextEditor {
   private isApplyingRemoteChange: boolean = false;
 
   constructor(containerId: string, onCursorChange?: (position: number) => void, onContentUpdate?: () => void, onChange?: (type: 'insert' | 'delete', content: string, position: number) => void) {
-    this.onCursorChange = onCursorChange;
-    this.onContentUpdate = onContentUpdate;
-    this.onChangeCallback = onChange;
+    this.onCursorChange = onCursorChange; // called in main.ts to update cursor position
+    this.onContentUpdate = onContentUpdate; // called in ui.ts to reattach detached cursors
+    this.onChangeCallback = onChange; // called in main.ts to send change to websocket
     
     const containerElement = document.getElementById(containerId);
     if (!containerElement) {
@@ -90,7 +90,7 @@ export class TextEditor {
     this.lastContent = this.editorView.state.doc.toString();
   }
 
-  // Find difference between old and new text
+  // (NO LONGER USED) Find difference between old and new text
   findDifference(oldText: string, newText: string): DiffResult | null {
     oldText = oldText.replace(/\u00A0/g, ' ');
     newText = newText.replace(/\u00A0/g, ' ');
@@ -139,7 +139,7 @@ export class TextEditor {
     return null;
   }
 
-  // Handle local content changes
+  // (NO LONGER USED) Handle local content changes
   handleContentChange(onChange: (type: 'insert' | 'delete', content: string, position: number) => void): void {
     if (!this.editorView) return;
     

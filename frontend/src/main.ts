@@ -32,7 +32,6 @@ class CollaborativeTextEditor {
     (window as any).connect = () => this.connect();
     (window as any).disconnect = () => this.disconnect();
     // Note: handleEditorChange and updateCursorPosition are now handled automatically by CodeMirror
-    (window as any).handleEditorChange = () => this.handleEditorChange();
     (window as any).updateCursorPosition = () => this.uiManager.updateCursorPosition();
   }
 
@@ -52,13 +51,6 @@ class CollaborativeTextEditor {
     this.uiManager.clearAllCursors();
   }
 
-  // outgoing
-  private handleEditorChange(): void {
-    this.uiManager.handleEditorChange((type, content, position) => {
-      this.wsManager.sendMessage(type, content, position);
-      console.log(`📤 Sent: ${type} "${content}" at position ${position}`);
-    });
-  }
 
   // outgoing
   private handleCursorChange(position: number): void {

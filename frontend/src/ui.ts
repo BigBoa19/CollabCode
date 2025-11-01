@@ -68,14 +68,6 @@ export class UIManager {
     this.cursorManager.reattachDetachedCursors();
   }
 
-  // TextEditor methods
-  // Note: With CodeMirror, changes are automatically tracked via the onChange callback
-  // This method is kept for compatibility but may not be needed
-  handleEditorChange(_onChange: (type: 'insert' | 'delete', content: string, position: number) => void): void {
-    // CodeMirror handles change tracking automatically through the callback
-    // This is a no-op now, but kept for API compatibility
-  }
-
   handleRemoteChange(type: 'insert' | 'delete' | 'cursor', content: string, position: number): void {
     this.textEditor.handleRemoteChange(type, content, position);
   }

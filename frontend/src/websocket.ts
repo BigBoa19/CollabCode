@@ -72,7 +72,6 @@ export class WebSocketManager {
 
   sendMessage(type: Message['type'], content: string, position: number): void {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
-      alert("Not connected to WebSocket");
       return;
     }
 
