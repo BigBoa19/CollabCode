@@ -56,6 +56,9 @@ func main() {
 		handleWebSocket(Hub, w, r)
 	})
 
+	// Code execution endpoint
+	r.HandleFunc("/api/run", handleRunCode)
+
 	// Serve the HTML file
 	r.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		http.ServeFile(w, r, "../index.html")
