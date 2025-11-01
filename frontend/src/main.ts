@@ -32,9 +32,17 @@ class CollaborativeTextEditor {
     (window as any).connect = () => this.connect();
     (window as any).disconnect = () => this.disconnect();
     (window as any).run = () => this.uiManager.run();
+    
+    window.addEventListener('beforeunload', () => {
+      this.disconnect();
+    });
+    
   }
 
   private initialize(): void {
+    const path = window.location.pathname;
+    const id = path.slice(1);
+    this.wsManager.connect(id);
     this.updateUserInfo();
     console.log("🚀 Collaborative Text Editor loaded. Ready to connect!");
   }
@@ -65,6 +73,9 @@ class CollaborativeTextEditor {
     } else if (message.type === "cursor") {
       console.log(`INCOMING: Received cursor position: ${message.position} from user ${message.user_id}`);
       this.uiManager.updateRemoteCursorPosition(message.user_id, message.position)
+    } else if (message.type === "leave") {
+      console.log(`INCOMING: User ${message.user_id} left the room`);
+      this.uiManager.removeRemoteCursor(message.user_id);
     }
   }
 

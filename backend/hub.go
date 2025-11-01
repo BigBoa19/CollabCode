@@ -39,8 +39,22 @@ func (h *Hub) Run() {
 		case client := <-h.Unregister: // when a client wants to unregister
 			room := client.Room
 			if room != nil {
+				// Broadcast leave message to other clients before removing
+				leaveMessage := NewMessage(MessageTypeLeave, "", 0, client.ID)
+				for otherClient := range room.Clients {
+					if otherClient.ID != client.ID {
+						select {
+						case otherClient.Send <- leaveMessage:
+							// Message sent
+						default:
+							// Channel blocked, skip
+						}
+					}
+				}
+
 				delete(room.Clients, client) // remove the client from the room
 				close(client.Send)           // close the client's send channel
+				log.Printf("Client %s left room %s (remaining clients: %d)", client.ID, room.ID, len(room.Clients))
 			}
 			if len(room.Clients) == 0 { // room is empty, so delete the room
 				delete(h.Rooms, room.ID)

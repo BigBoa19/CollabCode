@@ -62,6 +62,10 @@ export class UIManager {
     this.cursorManager.updateRemoteCursorPosition(userId, position);
   }
 
+  removeRemoteCursor(userId: string): void {
+    this.cursorManager.removeCursor(userId);
+  }
+
   clearAllCursors(): void {
     this.cursorManager.clearAllCursors()
   }

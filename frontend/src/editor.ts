@@ -1,7 +1,7 @@
 import { EditorState } from '@codemirror/state';
 import { EditorView, keymap, highlightActiveLine, highlightActiveLineGutter, lineNumbers } from '@codemirror/view';
 import { defaultKeymap, history, historyKeymap } from '@codemirror/commands';
-import { bracketMatching, foldGutter, indentOnInput } from '@codemirror/language';
+import { bracketMatching, foldGutter, indentOnInput, syntaxHighlighting, defaultHighlightStyle } from '@codemirror/language';
 import { javascript } from '@codemirror/lang-javascript';
 import type { DiffResult, RunResponse } from './types';
 import { linter, lintGutter, type Diagnostic } from '@codemirror/lint'
@@ -86,6 +86,7 @@ export class TextEditor {
         bracketMatching(),
         keymap.of([...defaultKeymap, ...historyKeymap]),
         javascript(),
+        syntaxHighlighting(defaultHighlightStyle),
         EditorView.updateListener.of((update) => {
           if (update.docChanged && !this.isApplyingRemoteChange && this.onChangeCallback) {
             // Use CodeMirror's change tracking to detect exact changes
