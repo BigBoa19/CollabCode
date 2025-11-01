@@ -40,8 +40,7 @@ class CollaborativeTextEditor {
   }
 
   private initialize(): void {
-    const path = window.location.pathname;
-    const id = path.slice(1);
+    const id  = location.hash.replace(/^#\/?/, '');
     this.wsManager.connect(id);
     this.updateUserInfo();
     console.log("🚀 Collaborative Text Editor loaded. Ready to connect!");
