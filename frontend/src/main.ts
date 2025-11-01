@@ -31,8 +31,7 @@ class CollaborativeTextEditor {
     // Make functions globally available for onclick handlers
     (window as any).connect = () => this.connect();
     (window as any).disconnect = () => this.disconnect();
-    // Note: handleEditorChange and updateCursorPosition are now handled automatically by CodeMirror
-    (window as any).updateCursorPosition = () => this.uiManager.updateCursorPosition();
+    (window as any).run = () => this.uiManager.run();
   }
 
   private initialize(): void {

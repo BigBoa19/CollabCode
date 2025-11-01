@@ -13,3 +13,9 @@ export interface DiffResult {
   content: string;
   position: number;
 }
+
+export interface RunResponse {
+  output: string;
+  exit_code: number;
+  duration_ms: number;
+}

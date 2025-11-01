@@ -3,7 +3,27 @@ import { EditorView, keymap, highlightActiveLine, highlightActiveLineGutter, lin
 import { defaultKeymap, history, historyKeymap } from '@codemirror/commands';
 import { bracketMatching, foldGutter, indentOnInput } from '@codemirror/language';
 import { javascript } from '@codemirror/lang-javascript';
-import type { DiffResult } from './types';
+import type { DiffResult, RunResponse } from './types';
+import { linter, lintGutter, type Diagnostic } from '@codemirror/lint'
+import { Linter } from "eslint-linter-browserify";
+
+const eslint = new Linter();
+const flatConfig = [{
+  languageOptions: {
+    ecmaVersion: 2022,
+    sourceType: "module",            // use "script" if not modules
+    globals:  {
+      window: "readonly",
+      document: "readonly",
+      console: "readonly",
+    },
+  },
+  rules: {
+    "no-undef": "error", 
+    "no-unused-vars": ["warn", { args: "none" }],
+    "eqeqeq": "error",
+  },
+}];
 
 export class TextEditor {
   private editorView: EditorView | null = null;
@@ -17,11 +37,39 @@ export class TextEditor {
     this.onCursorChange = onCursorChange; // called in main.ts to update cursor position
     this.onContentUpdate = onContentUpdate; // called in ui.ts to reattach detached cursors
     this.onChangeCallback = onChange; // called in main.ts to send change to websocket
-    
     const containerElement = document.getElementById(containerId);
     if (!containerElement) {
       throw new Error(`Editor container with id '${containerId}' not found`);
     }
+
+    function posFromLineCol(state: EditorState, line?: number, col?: number) {
+      const l = state.doc.line(line ?? 1);
+      const c = Math.max(0, (col ?? 1) - 1);
+      return l.from + c;
+    }
+    // create linter 
+    const codeLinter = linter(async (view) => {
+      const code = view.state.doc.toString();
+
+      const messages = eslint.verify(code, flatConfig, {
+        filename: "virtual.js",                                  // <- any label you want
+      });
+
+      const diagnostics: Diagnostic[] = messages.map((m: any) => {
+        const from = posFromLineCol(view.state, m.line, m.column);
+        const to = posFromLineCol(view.state, m.endLine ?? m.line, m.endColumn ?? m.column);
+        return {
+          from,
+          to: Math.max(from, to),
+          message: m.message,
+          severity: m.severity === 2 ? "error" : "warning",
+          source: m.ruleId || "eslint",
+        };
+      });
+
+      console.log("DIAGNOSTICS", diagnostics)
+      return diagnostics;
+    }, { delay: 350 })
 
     // Initialize CodeMirror editor
     const startState = EditorState.create({
@@ -31,6 +79,8 @@ export class TextEditor {
         highlightActiveLineGutter(),
         highlightActiveLine(),
         history(),
+        codeLinter,
+        lintGutter(),
         foldGutter(),
         indentOnInput(),
         bracketMatching(),
@@ -59,7 +109,7 @@ export class TextEditor {
           if (update.selectionSet && !this.isApplyingRemoteChange) {
             // Cursor position changed
             const position = update.state.selection.main.head;
-            this.onCursorChange?.(position);
+            this.onCursorChange?.(position); // update position
           }
         }),
         EditorView.theme({
@@ -238,14 +288,6 @@ export class TextEditor {
     }
   }
 
-  // Update cursor position
-  updateCursorPosition(): void {
-    if (!this.editorView) return;
-    
-    const position = this.editorView.state.selection.main.head;
-    this.onCursorChange?.(position);
-  }
-
   // Get current content
   getContent(): string {
     return this.editorView?.state.doc.toString() || "";
@@ -280,5 +322,27 @@ export class TextEditor {
   // Get editor container element
   getContainerElement(): HTMLElement | null {
     return this.editorView?.dom || null;
+  }
+
+  async run(): Promise<RunResponse | null> {
+    try {
+      const response = await fetch('https://collabcode-production-b41e.up.railway.app/api/run', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          language: 'javascript',
+          code: this.lastContent
+        })
+      })
+  
+      const result = await response.json()
+  
+      return result
+    } catch(e) {
+      console.error("Error running code", e)
+      return null
+    }
   }
 }

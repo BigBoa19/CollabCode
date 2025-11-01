@@ -5,6 +5,7 @@ export class UIManager {
   private statusElement: HTMLDivElement; // connection status
   private userIdElement: HTMLSpanElement; // user id
   private currentRoomElement: HTMLSpanElement; // current room
+  private output: HTMLElement;
   private cursorManager: CursorManager;
   private textEditor: TextEditor;
 
@@ -12,6 +13,7 @@ export class UIManager {
     this.statusElement = document.getElementById("status") as HTMLDivElement;
     this.userIdElement = document.getElementById("userId") as HTMLSpanElement;
     this.currentRoomElement = document.getElementById("currentRoom") as HTMLSpanElement;
+    this.output = document.getElementById("output") as HTMLSpanElement;
     this.cursorManager = new CursorManager('editor');
     this.textEditor = new TextEditor('editor', 
       onCursorChange,
@@ -72,8 +74,12 @@ export class UIManager {
     this.textEditor.handleRemoteChange(type, content, position);
   }
 
-  updateCursorPosition(): void {
-    this.textEditor.updateCursorPosition();
+  async run(): Promise<void> {
+    const result = await this.textEditor.run();
+    if (result == null) {
+      return;
+    }
+    this.output.textContent = result.output
   }
 
   clearEditor(): void {
