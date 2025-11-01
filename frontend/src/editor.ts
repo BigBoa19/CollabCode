@@ -338,7 +338,7 @@ export class TextEditor {
       })
   
       const result = await response.json()
-  
+      console.log("RUN RESULT", result)
       return result
     } catch(e) {
       console.error("Error running code", e)

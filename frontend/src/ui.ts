@@ -79,6 +79,10 @@ export class UIManager {
     if (result == null) {
       return;
     }
+    if (result.exit_code !== 0) {
+      this.output.textContent = `Error: ${result.output}`;
+      return;
+    }
     this.output.textContent = result.output
   }
 
