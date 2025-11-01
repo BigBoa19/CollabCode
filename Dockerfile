@@ -18,7 +18,13 @@ RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o main .
 # Final stage
 FROM alpine:latest
 
-RUN apk --no-cache add ca-certificates
+# Install Node.js, Python3, and ca-certificates
+RUN apk --no-cache add \
+    ca-certificates \
+    nodejs \
+    npm \
+    python3 \
+    py3-pip
 
 WORKDIR /root/
 
