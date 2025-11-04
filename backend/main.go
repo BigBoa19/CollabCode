@@ -23,7 +23,8 @@ func handleWebSocket(hub *Hub, w http.ResponseWriter, r *http.Request) {
 	// Get user_id from query parameter
 	userID := r.URL.Query().Get("user_id")
 	// If user_id is not provided, generate one (for backwards compatibility)
-	if userID == "" {
+	if userID == "empty_user_id_!" {
+		log.Println("No user_id yet, generating one!!!")
 		userID = "user-" + time.Now().Format("0405")
 	}
 

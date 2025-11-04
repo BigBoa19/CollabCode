@@ -117,6 +117,8 @@ export class TextEditor {
           '&': {
             fontSize: '14px',
             height: '100%',
+            color: '#e4e4e7', // zinc-200 text color
+            backgroundColor: '#09090b', // zinc-950 background
           },
           '.cm-editor': {
             height: '100%',
@@ -128,6 +130,35 @@ export class TextEditor {
           '.cm-content': {
             padding: '16px',
             minHeight: '100%',
+            backgroundColor: '#09090b', // zinc-950
+            color: '#e4e4e7', // zinc-200
+          },
+          '.cm-lineNumbers': {
+            backgroundColor: '#18181b', // zinc-900
+            color: '#71717a', // zinc-500
+            minWidth: '3ch',
+            paddingRight: '8px',
+          },
+          '.cm-lineNumbers .cm-gutterElement': {
+            color: '#71717a', // zinc-500
+            paddingLeft: '8px',
+            paddingRight: '8px',
+          },
+          '.cm-lineNumbers .cm-activeLineGutter': {
+            backgroundColor: '#27272a !important', // zinc-800
+            color: '#a1a1aa', // zinc-400
+          },
+          '.cm-activeLineGutter': {
+            backgroundColor: '#27272a !important', // zinc-800
+            color: '#a1a1aa', // zinc-400
+          },
+          '.cm-gutterElement.cm-activeLineGutter': {
+            backgroundColor: '#27272a !important', // zinc-800
+            color: '#a1a1aa !important', // zinc-400
+          },
+          '.cm-gutters': {
+            backgroundColor: '#18181b', // zinc-900
+            borderRight: '1px solid #27272a', // zinc-800 border
           },
         }),
       ],

@@ -7,6 +7,7 @@ import './output.css';
 class CollaborativeTextEditor {
   private wsManager: WebSocketManager;
   private uiManager: UIManager;
+  private username: string = "";
 
   constructor() {
     this.uiManager = new UIManager(
@@ -19,8 +20,7 @@ class CollaborativeTextEditor {
     
     this.wsManager = new WebSocketManager(
       (message) => this.handleMessage(message),
-      (connected) => this.handleStatusChange(connected),
-      () => this.updateUserInfo()
+      (username) => this.updateUserInfo(username)
     );
 
     this.setupEventListeners();
@@ -29,26 +29,69 @@ class CollaborativeTextEditor {
 
   private setupEventListeners(): void {
     // Make functions globally available for onclick handlers
-    (window as any).connect = () => this.connect();
-    (window as any).disconnect = () => this.disconnect();
     (window as any).run = () => this.uiManager.run();
-    
+    (window as any).copyLink = () => this.copyLink();
+    (window as any).toggleDropdown = (event?: Event) => this.toggleDropdown(event);
+    (window as any).saveName = () => this.saveName();
+
     window.addEventListener('beforeunload', () => {
       this.disconnect();
     });
+  }
+
+  private toggleDropdown(event?: Event): void {
+    if (event) {
+      event.stopPropagation();
+    }
+    const dropdownMenu = document.getElementById('dropdownMenu');
+    if (dropdownMenu) {
+      dropdownMenu.classList.toggle('hidden');
+    }
+  }
+
+  private saveName(): void {
+    const nameInput = document.getElementById('nameInput') as HTMLInputElement;
+    if (!nameInput) return;
     
+    const newName = nameInput.value.trim();
+    if (newName) {
+      // Close dropdown
+      const dropdownMenu = document.getElementById('dropdownMenu');
+      if (dropdownMenu) {
+        dropdownMenu.classList.add('hidden');
+      }
+      // Handle the save
+      this.handleNameSave(newName);
+    }
+  }
+
+  private handleNameSave(newName: string): void {
+    this.username = newName;
+    this.updateUserInfo(newName);
+    // Force page refresh to reconnect with new user_id
+    window.location.reload();
+  }
+
+  private copyLink(): void {
+    const link = window.location.href;
+    navigator.clipboard.writeText(link);
+    console.log("Copied link to clipboard: ", link);
   }
 
   private initialize(): void {
-    const id  = location.hash.replace(/^#\/?/, '');
+    let id  = location.hash.replace(/^#\/?/, '');
+    if (!id || id.length == 0 || id === "") {
+      console.log("No initial ID")
+      id = generateRoomId();
+      window.location.hash = id;
+    } 
+    this.username = this.getSavedUsername() || "No User";
     this.wsManager.connect(id);
-    this.updateUserInfo();
+    
+    // Set initial name in UI
+    this.uiManager.updateNameInput(this.username);
+    
     console.log("🚀 Collaborative Text Editor loaded. Ready to connect!");
-  }
-
-  private connect(): void {
-    const roomId = this.uiManager.getRoomInput();
-    this.wsManager.connect(roomId);
   }
 
   private disconnect(): void {
@@ -75,29 +118,38 @@ class CollaborativeTextEditor {
     } else if (message.type === "leave") {
       console.log(`INCOMING: User ${message.user_id} left the room`);
       this.uiManager.removeRemoteCursor(message.user_id);
+    } 
+  }
+
+  private updateUserInfo(username: string): void {
+    console.log("Updating user info to: ", username)
+    this.username = username;
+    this.uiManager.updateNameInput(this.username);
+    this.wsManager.updateUserID(this.username);
+    this.saveUsername(this.username)
+  }
+
+  private saveUsername(username: string): void {
+    try {
+      localStorage.setItem('username', username);
+    } catch (error) {
+      console.warn("Failed to save username")
     }
   }
 
-  private handleStatusChange(connected: boolean): void {
-    const message = connected 
-      ? `✅ Connected to room: ${this.wsManager.currentRoomId}`
-      : "❌ Disconnected";
-    
-    this.uiManager.updateStatus(message, connected);
-    this.uiManager.updateConnectionButtons(connected);
-    
-    if (connected) {
-      console.log(`✅ Connected to room "${this.wsManager.currentRoomId}"`);
-    } else {
-      console.log("❌ Connection closed");
+  private getSavedUsername(): string {
+    try {
+      const saved = localStorage.getItem('username');
+      if (saved) {
+        this.username = saved;
+        this.wsManager.updateUserID(saved);
+      }
+      console.log("Username: ", this.username)
+      return saved || "";
+    } catch (error) {
+      console.warn("Failed to read username");
+      return "";
     }
-  }
-
-  private updateUserInfo(): void {
-    this.uiManager.updateUserInfo(
-      this.wsManager.currentUserId,
-      this.wsManager.currentRoomId,
-    );
   }
 }
 
@@ -105,3 +157,16 @@ class CollaborativeTextEditor {
 document.addEventListener('DOMContentLoaded', () => {
   new CollaborativeTextEditor();
 });
+
+function generateRoomId(): string {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  let result = '';
+  const array = new Uint8Array(8); // 8 characters
+  crypto.getRandomValues(array); // More secure than Math.random()
+  
+  for (let i = 0; i < 8; i++) {
+    result += chars[array[i] % chars.length];
+  }
+  console.log("generated", result)
+  return result;
+}

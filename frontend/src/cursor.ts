@@ -20,7 +20,7 @@ export class CursorManager {
   updateRemoteCursorPosition(user_id: string, position: number): void {
     // Create cursor if it doesn't exist
     if (!this.remoteCursors.has(user_id)) {
-      const cursorElement = this.createRemoteCursorElement();
+      const cursorElement = this.createRemoteCursorElement(user_id);
       this.containerElement.appendChild(cursorElement);
       this.remoteCursors.set(user_id, {
         position: position,
@@ -36,36 +36,96 @@ export class CursorManager {
     }
   }
 
-  private createRemoteCursorElement(): HTMLElement {
+  private getCursorColor(user_id: string): string {
+    // Colors: blue, red, pink, yellow
+    const colors = ['#3b82f6', '#ef4444', '#ec4899', '#eab308'];
+    // Use a simple hash of user_id to deterministically assign colors
+    let hash = 0;
+    for (let i = 0; i < user_id.length; i++) {
+      hash = ((hash << 5) - hash) + user_id.charCodeAt(i);
+      hash = hash & hash; // Convert to 32-bit integer
+    }
+    return colors[Math.abs(hash) % colors.length];
+  }
+
+  private createRemoteCursorElement(user_id: string): HTMLElement {
+    const color = this.getCursorColor(user_id);
+    
+    // Create wrapper container for hover functionality
+    const wrapper = document.createElement('div');
+    wrapper.className = 'remote-cursor-wrapper';
+    wrapper.style.cssText = `
+      position: absolute;
+      z-index: 1000;
+    `;
+    
+    // Create hover zone (invisible area that detects hover)
+    const hoverZone = document.createElement('div');
+    hoverZone.className = 'remote-cursor-hover-zone';
+    hoverZone.style.cssText = `
+      position: absolute;
+      left: -4px;
+      top: -4px;
+      width: 10px;
+      height: 26px;
+      pointer-events: auto;
+    `;
+    
+    // Create the visible cursor line
     const cursor = document.createElement('div');
     cursor.className = 'remote-cursor';
     cursor.style.cssText = `
       position: absolute;
+      left: 4px;
+      top: 0;
       width: 2px;
       height: 18px;
-      background-color: #ff6b6b;
+      background-color: ${color};
       pointer-events: none;
-      z-index: 1000;
       opacity: 0.8;
       transition: opacity 0.2s;
     `;
     
-    // Add user label (optional)
-    // const label = document.createElement('div');
-    // label.textContent = userId;
-    // label.style.cssText = `
-    //   position: absolute;
-    //   top: -20px;
-    //   left: 0;
-    //   background: #ff6b6b;
-    //   color: white;
-    //   padding: 2px 6px;
-    //   border-radius: 3px;
-    //   font-size: 12px;
-    //   white-space: nowrap;
-    // `;
-    // cursor.appendChild(label);
-    return cursor;
+    // Add user label (hidden by default, shown on hover)
+    const label = document.createElement('div');
+    label.className = 'remote-cursor-label';
+    label.textContent = user_id;
+    label.style.cssText = `
+      position: absolute;
+      top: -14px;
+      left: 4px;
+      background: ${color};
+      color: white;
+      padding: 1px 4px;
+      border-radius: 2px;
+      font-size: 10px;
+      white-space: nowrap;
+      line-height: 1.2;
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity 0.2s, visibility 0.2s;
+      pointer-events: none;
+    `;
+    
+    // Show label on hover
+    hoverZone.addEventListener('mouseenter', () => {
+      label.style.opacity = '1';
+      label.style.visibility = 'visible';
+    });
+    
+    hoverZone.addEventListener('mouseleave', () => {
+      label.style.opacity = '0';
+      label.style.visibility = 'hidden';
+    });
+    
+    wrapper.appendChild(hoverZone);
+    wrapper.appendChild(cursor);
+    wrapper.appendChild(label);
+    
+    // Store references for height updates
+    (wrapper as any).cursorLine = cursor;
+    
+    return wrapper;
   }
 
   private positionRemoteCursor(userId: string, position: number): void {
@@ -96,12 +156,19 @@ export class CursorManager {
       
       if (coords) {
         // Position cursor relative to container
-        const leftOffset = coords.left - containerRect.left - 3.2;
-        const topOffset = coords.top - containerRect.top - 1;
+        const leftOffset = coords.left - containerRect.left;
+        const topOffset = coords.top - containerRect.top;
+        const lineHeight = coords.bottom - coords.top;
         
-        cursorData.element.style.left = `${leftOffset}px`;
+        cursorData.element.style.left = `${leftOffset - 4}px`;
         cursorData.element.style.top = `${topOffset}px`;
-        cursorData.element.style.height = `${coords.bottom - coords.top}px`;
+        
+        // Update cursor line height
+        const cursorLine = (cursorData.element as any).cursorLine;
+        if (cursorLine) {
+          cursorLine.style.height = `${lineHeight}px`;
+        }
+        
         cursorData.element.style.opacity = '0.8';
       } else {
         // Fallback if coordinates not available (e.g., position out of view)

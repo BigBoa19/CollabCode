@@ -3,22 +3,19 @@ import type { Message } from './types';
 export class WebSocketManager {
   private ws: WebSocket | null = null;
   private roomId: string = "";
-  private userId: string | null = null;
+  private userId: string = "empty_user_id_!";
   private messagesSent: number = 0;
   private messagesReceived: number = 0;
 
   // Callbacks for external handlers
   private onMessageHandler?: (message: Message) => void;
-  private onStatusChange?: (connected: boolean) => void;
-  private onUserInfoChange?: () => void;
+  private onUserInfoChange?: (username: string) => void;
 
   constructor(
     onMessage?: (message: Message) => void,
-    onStatusChange?: (connected: boolean) => void,
-    onUserInfoChange?: () => void
+    onUserInfoChange?: (username: string) => void
   ) {
     this.onMessageHandler = onMessage;
-    this.onStatusChange = onStatusChange;
     this.onUserInfoChange = onUserInfoChange;
   }
 
@@ -31,14 +28,11 @@ export class WebSocketManager {
 
     // Use production URL or fallback to localhost for development
     const baseUrl = 'wss://collabcode-production-b41e.up.railway.app';
-    const wsUrl = `${baseUrl}/ws/${this.roomId}`;
+    const devBaseUrl = 'ws://localhost:8080';
+    const wsUrl = `${devBaseUrl}/ws/${this.roomId}?user_id=${this.userId}`;
     
     try {
       this.ws = new WebSocket(wsUrl);
-
-      this.ws.onopen = () => {
-        this.onStatusChange?.(true);
-      };
 
       this.ws.onmessage = (event: MessageEvent) => {
         this.messagesReceived++;
@@ -49,10 +43,6 @@ export class WebSocketManager {
         } catch (error) {
           console.error('Error parsing message:', error);
         }
-      };
-
-      this.ws.onclose = () => {
-        this.onStatusChange?.(false);
       };
 
       this.ws.onerror = (error: Event) => {
@@ -89,9 +79,15 @@ export class WebSocketManager {
 
   private handleMessage(message: Message): void {
     if (message.type === "join") {
+      console.log(message.content)
       this.userId = message.content;
-      this.onUserInfoChange?.();
+      this.onUserInfoChange?.(this.userId);
     }
+  }
+
+  updateUserID(username: string): void {
+    console.log("ran")
+    this.userId = username;
   }
 
   // Getters

@@ -1,4 +1,4 @@
-export type MessageType = 'insert' | 'delete' | 'cursor' | 'join' | 'leave';
+export type MessageType = 'insert' | 'delete' | 'cursor' | 'join' | 'leave' | 'name';
 
 export interface Message {
   type: MessageType;
