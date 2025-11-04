@@ -28,8 +28,7 @@ export class WebSocketManager {
 
     // Use production URL or fallback to localhost for development
     const baseUrl = 'wss://collabcode-production-b41e.up.railway.app';
-    const devBaseUrl = 'ws://localhost:8080';
-    const wsUrl = `${devBaseUrl}/ws/${this.roomId}?user_id=${this.userId}`;
+    const wsUrl = `${baseUrl}/ws/${this.roomId}?user_id=${this.userId}`;
     
     try {
       this.ws = new WebSocket(wsUrl);
