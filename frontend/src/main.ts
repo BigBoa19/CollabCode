@@ -75,7 +75,7 @@ class CollaborativeTextEditor {
   private copyLink(): void {
     const link = window.location.href;
     navigator.clipboard.writeText(link);
-    console.log("Copied link to clipboard: ", link);
+    alert("Link copied. Send the link to collaborators!");
   }
 
   private initialize(): void {

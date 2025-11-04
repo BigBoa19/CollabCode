@@ -1,8 +1,9 @@
 import { EditorState } from '@codemirror/state';
 import { EditorView, keymap, highlightActiveLine, highlightActiveLineGutter, lineNumbers } from '@codemirror/view';
-import { defaultKeymap, history, historyKeymap } from '@codemirror/commands';
+import { autocompletion, completionKeymap, closeBrackets, acceptCompletion, completionStatus } from '@codemirror/autocomplete';
+import { defaultKeymap, history, historyKeymap, indentMore, indentLess } from '@codemirror/commands';
 import { bracketMatching, foldGutter, indentOnInput, syntaxHighlighting, defaultHighlightStyle } from '@codemirror/language';
-import { javascript } from '@codemirror/lang-javascript';
+import { javascript, javascriptLanguage } from '@codemirror/lang-javascript';
 import type { DiffResult, RunResponse } from './types';
 import { linter, lintGutter, type Diagnostic } from '@codemirror/lint'
 import { Linter } from "eslint-linter-browserify";
@@ -71,6 +72,69 @@ export class TextEditor {
       return diagnostics;
     }, { delay: 350 })
 
+    // Custom Tab behavior: accept completion if active, else indent; Shift-Tab outdents
+    const tabKeymap = keymap.of([{
+      key: 'Tab',
+      run: (view) => {
+        const status = completionStatus(view.state);
+        if (status === 'active') {
+          return acceptCompletion(view);
+        }
+        return indentMore(view);
+      }
+    }, {
+      key: 'Shift-Tab',
+      run: indentLess
+    }]);
+
+    // Custom completion for console and methods
+    const consoleCompletion = (context: any) => {
+      const before = context.matchBefore(/\w*/);
+      const from = before ? before.from : context.pos;
+
+      // Suggest console methods when typing after 'console.'
+      const linePrefix = context.state.sliceDoc(Math.max(0, context.pos - 20), context.pos);
+      if (/console\.[\w]*$/.test(linePrefix)) {
+        return {
+          from,
+          options: [
+            {label: 'log', type: 'function', apply: (view: any) => {
+              const tr = view.state.update({
+                changes: {from, to: context.pos, insert: 'log()'},
+                selection: {anchor: from + 4}
+              });
+              view.dispatch(tr);
+            }},
+            {label: 'warn', type: 'function', apply: (view: any) => {
+              const tr = view.state.update({
+                changes: {from, to: context.pos, insert: 'warn()'},
+                selection: {anchor: from + 5}
+              });
+              view.dispatch(tr);
+            }},
+            {label: 'error', type: 'function', apply: (view: any) => {
+              const tr = view.state.update({
+                changes: {from, to: context.pos, insert: 'error()'},
+                selection: {anchor: from + 6}
+              });
+              view.dispatch(tr);
+            }},
+          ]
+        };
+      }
+
+      // Otherwise suggest 'console' as a variable
+      if (before && (before.from < before.to || context.explicit)) {
+        return {
+          from,
+          options: [
+            {label: 'console', type: 'variable'}
+          ]
+        };
+      }
+      return null;
+    };
+
     // Initialize CodeMirror editor
     const startState = EditorState.create({
       doc: "",
@@ -84,7 +148,12 @@ export class TextEditor {
         foldGutter(),
         indentOnInput(),
         bracketMatching(),
-        keymap.of([...defaultKeymap, ...historyKeymap]),
+        tabKeymap,
+        keymap.of([...defaultKeymap, ...historyKeymap, ...completionKeymap]),
+        closeBrackets(),
+        autocompletion(),
+        // Add console completion alongside JS language completions
+        javascriptLanguage.data.of({autocomplete: consoleCompletion}),
         javascript(),
         syntaxHighlighting(defaultHighlightStyle),
         EditorView.updateListener.of((update) => {
@@ -159,6 +228,72 @@ export class TextEditor {
           '.cm-gutters': {
             backgroundColor: '#18181b', // zinc-900
             borderRight: '1px solid #27272a', // zinc-800 border
+          },
+          // Lint tooltip and diagnostics styling for dark theme
+          '.cm-tooltip.cm-tooltip-lint': {
+            backgroundColor: '#0b1220', // slate-950-ish
+            border: '1px solid #334155', // slate-700
+            color: '#e5e7eb', // gray-200
+            boxShadow: '0 10px 20px rgba(0,0,0,0.35)',
+            maxWidth: '640px',
+            padding: '6px 6px',
+          },
+          // Ensure inline hover tooltips (over error text) use dark theme too
+          '.cm-tooltip:not(.cm-tooltip-autocomplete)': {
+            backgroundColor: '#0b1220',
+            border: '1px solid #334155',
+            color: '#e5e7eb',
+            boxShadow: '0 10px 20px rgba(0,0,0,0.35)'
+          },
+          '.cm-tooltip.cm-tooltip-lint .cm-tooltip-lint-header': {
+            color: '#cbd5e1', // slate-300
+            borderBottom: '1px solid #1f2937', // gray-800
+          },
+          '.cm-tooltip.cm-tooltip-lint .cm-diagnostic': {
+            color: '#e5e7eb',
+            background: 'transparent',
+          },
+          '.cm-tooltip.cm-tooltip-lint .cm-diagnosticText': {
+            color: '#e5e7eb',
+            lineHeight: '1.4',
+            whiteSpace: 'pre-wrap',
+          },
+          '.cm-tooltip.cm-tooltip-lint .cm-diagnosticAction': {
+            color: '#93c5fd', // blue-300
+          },
+          '.cm-tooltip.cm-tooltip-lint .cm-diagnosticAction:hover': {
+            color: '#bfdbfe', // blue-200
+            textDecoration: 'underline',
+          },
+          '.cm-tooltip.cm-tooltip-lint .cm-diagnostic-error': {
+            borderLeft: '3px solid #ef4444', // red-500
+            backgroundColor: 'transparent',
+          },
+          '.cm-tooltip.cm-tooltip-lint .cm-diagnostic-warning': {
+            borderLeft: '3px solid #f59e0b', // amber-500
+            backgroundColor: 'transparent',
+          },
+          '.cm-tooltip.cm-tooltip-lint .cm-diagnostic-info': {
+            borderLeft: '3px solid #3b82f6', // blue-500
+            backgroundColor: 'transparent',
+          },
+          '.cm-diagnostic': {
+            color: '#e5e7eb',
+          },
+          '.cm-diagnosticAction': {
+            color: '#93c5fd', // blue-300
+          },
+          '.cm-diagnostic-error': {
+            borderLeft: '3px solid #ef4444', // red-500
+            backgroundColor: 'rgba(239,68,68,0.08)',
+          },
+          '.cm-diagnostic-warning': {
+            borderLeft: '3px solid #f59e0b', // amber-500
+            backgroundColor: 'rgba(245,158,11,0.08)',
+          },
+          '.cm-diagnostic-info': {
+            borderLeft: '3px solid #3b82f6', // blue-500
+            backgroundColor: 'rgba(59,130,246,0.08)',
           },
         }),
       ],

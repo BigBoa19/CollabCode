@@ -16,6 +16,7 @@ export interface DiffResult {
 
 export interface RunResponse {
   output: string;
+  error: string;
   exit_code: number;
   duration_ms: number;
 }

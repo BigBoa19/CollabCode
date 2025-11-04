@@ -12,6 +12,9 @@ export class UIManager {
     onChange?: (type: 'insert' | 'delete', content: string, position: number) => void
   ) {
     this.output = document.getElementById("output") as HTMLSpanElement;
+    if (this.output) {
+      this.output.style.whiteSpace = 'pre-wrap';
+    }
     this.cursorManager = new CursorManager('editor');
     this.nameInput = document.getElementById('nameInput') as HTMLInputElement;
     this.textEditor = new TextEditor('editor', 
@@ -86,15 +89,36 @@ export class UIManager {
   }
 
   async run(): Promise<void> {
+    const runBtn = document.getElementById('runBtn') as HTMLButtonElement | null;
+    let originalContent = '';
+    if (runBtn) {
+      originalContent = runBtn.innerHTML;
+      runBtn.disabled = true;
+      runBtn.textContent = 'Running...';
+    }
+
+    this.output.textContent = 'Running...';
     const result = await this.textEditor.run();
     if (result == null) {
+      if (runBtn) {
+        runBtn.disabled = false;
+        runBtn.innerHTML = originalContent;
+      }
       return;
     }
     if (result.exit_code !== 0) {
-      this.output.textContent = `Error: ${result.output}`;
+      this.output.textContent = `Error: ${result.error}`;
+      if (runBtn) {
+        runBtn.disabled = false;
+        runBtn.innerHTML = originalContent;
+      }
       return;
     }
     this.output.textContent = result.output
+    if (runBtn) {
+      runBtn.disabled = false;
+      runBtn.innerHTML = originalContent;
+    }
   }
 
   clearEditor(): void {
