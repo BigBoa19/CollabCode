@@ -20,6 +20,13 @@ func handleWebSocket(hub *Hub, w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	roomID := vars["roomID"]
 
+	// Get user_id from query parameter
+	userID := r.URL.Query().Get("user_id")
+	// If user_id is not provided, generate one (for backwards compatibility)
+	if userID == "" {
+		userID = "user-" + time.Now().Format("0405")
+	}
+
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.Println("Upgrade error:", err)
@@ -27,7 +34,7 @@ func handleWebSocket(hub *Hub, w http.ResponseWriter, r *http.Request) {
 	}
 
 	client := &Client{
-		ID:   "user-" + time.Now().Format("0405"),
+		ID:   userID,
 		Conn: conn,
 		Send: make(chan *Message, 256),
 		Room: &Room{ID: roomID},
